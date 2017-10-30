@@ -857,6 +857,9 @@ res_analysis_each_patient<-grep(ls(),pattern=".analysisGMIEC",value=T,fixed=T)
 save(list=res_analysis_each_patient,file=paste(output_file,".analysis_single_patient.RData",sep=""))
 save.image(file=paste(output_file,".ALL_analysis.RData",sep=""))
 
+#save annotation results
+write.table(selected_genes_after_GE_filtering,file=paste(paste("annotation_results_GMIEC",output_file,sep="."),".txt",sep=""),sep="\t",row.names=F,col.names=T,quote=F) 
+
 ###
 ### In this step i want create the main output of the analysis the MATRIX with all  data
 ###
@@ -986,73 +989,181 @@ write.table(t(MATRIX_RESULTS_ALL_CLINICAL[-1,]),file="Analysis_GMIEC_main_result
 ### genomics featurest explore the data
 
 
-#3) save the results considering the highest SAD 
+#3) define a function to save the results of the modules
+extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","which.min","custom",thrsad=NULL)){
+  
+  selectColumns<-grep(grep(colnames(MATRIX_RESULTS_ALL_CLINICAL),pattern="#",invert=T,value=T),pattern="score_alteration",invert=T,value=T)
+  filterMRAC<-MATRIX_RESULTS_ALL_CLINICAL[-1,selectColumns]
+  idexSADcolumn<-grep(colnames(filterMRAC),pattern="sad") #index of SAD columns
+  idXcutValue<-apply(filterMRAC[,idexSADcolumn],1,selection)
+  
+  ###
+  ### define some controls
+  ###
+  
+  if(selection=="which.max"){
+    output<-"maxSAD"
+    newcolnames<-paste(c("patientID","genes_in_module_with_","drugs_in_module_with_","score_of_module","rule_of_module"),output,sep="")
+    
+  }
+  
+  if(selection=="which.min"){
+    
+    output<-"minSAD"
+    newcolnames<-paste(c("patientID","genes_in_module_with_","drugs_in_module_with_","score_of_module","rule_of_module"),output,sep="")
+  
+  }
+  
+  if(selection=="custom"){
+    
+            output1<-paste("custom_max",thrsad,sep="")
+            output2<-paste("custom_min",-thrsad,sep="") 
+            newcolnames1<-paste(c("patientID","genes_in_module_with_","drugs_in_module_with_","score_of_module","rule_of_module"),output1,sep="")
+            newcolnames2<-paste(c("patientID","genes_in_module_with_","drugs_in_module_with_","score_of_module","rule_of_module"),output2,sep="")
+  }
+  
+  simple.output.results<-data.frame()
+  
+  if(selection!="custom"){
+    
+  for(i in 1:nrow(filterMRAC[,idexSADcolumn])){
+    
+    cutValue.index<-idXcutValue[i] #the number of cutimum value is the same of the number of rows used for their estimation
+    cutValue.extract<-filterMRAC[i,idexSADcolumn][cutValue.index]
+    names.cutValues<-gsub(pattern="score_sad",names(cutValue.extract),replacement="")
+    
+    stringtogrep<-paste(c("genes_in_module","drugs_in_module","score_sad","rule_module"),names.cutValues,sep="")
+    
+    newcol1<- colnames(filterMRAC)[which(colnames(filterMRAC)%in% stringtogrep)]
+    idx_start_clinical<-tail(grep(colnames(filterMRAC),pattern="rule"),1)+1 # see the index in which start the clinical data, i known that come after the rules
+    newcol2<-colnames(filterMRAC)[idx_start_clinical:ncol(filterMRAC)]
+    totalCol<-c(colnames(filterMRAC)[1],newcol1,newcol2)
+    
+    subRow<-cbind(patientID=rownames(filterMRAC)[i],data.frame(filterMRAC[i,totalCol]),n.module.cut.sad=names.cutValues,stringsAsFactors=F)
+    #the first four columns are always the same
+    colnames(subRow)[2:6]<-newcolnames
+    
+    simple.output.results<-rbind(simple.output.results,subRow)
+    
+  }
+  
+  simple.output.results<-cbind(simple.output.results[,-1],type.of.rule=as.numeric(as.factor(simple.output.results$rule_of_module)))
+  
+  write.table(simple.output.results,file=paste(paste("Analysis_GMIEC_simplified_results",output,sep=""),".txt",sep=""),sep="\t",row.names=F,col.names=T,quote=F) # the first row is always empty
+  
+  } else {
+    
+    simple.output.results<-data.frame()
 
-#start the processing to save the data in a simplest form, considered only the table where sad is higher
+    #define the output for output custom mode
+    list_parameter_for_custom_analysis<-list()
+    list_parameter_for_custom_analysis[[1]]<-c(-thrsad,thrsad)
+    list_parameter_for_custom_analysis[[2]]<-list(idXMinValue,idXMaxValue)
+    list_parameter_for_custom_analysis[[3]]<-data.frame(newcolnames1,newcolnames2)
+    list_parameter_for_custom_analysis[[4]]<-data.frame(output2,output1)
+
+    selectColumns<-grep(grep(colnames(MATRIX_RESULTS_ALL_CLINICAL),pattern="#",invert=T,value=T),pattern="score_alteration",invert=T,value=T)
+    filterMRAC<-MATRIX_RESULTS_ALL_CLINICAL[-1,selectColumns]
+    idexSADcolumn<-grep(colnames(filterMRAC),pattern="sad") #index of SAD columns
+
+    idXMinValue<-apply(X=filterMRAC[,idexSADcolumn],1, FUN=function(X){
+      if(length(which(as.numeric(X) < -thrsad))!=0) 
+      {which(as.numeric(X) < -thrsad)} else {
+        which.min(as.numeric(X))
+      }
+    }
+    )
+    
+    idXMaxValue<-apply(X=filterMRAC[,idexSADcolumn],1, FUN=function(X){
+      if(length(which(as.numeric(X) > thrsad))!=0)
+      {which(as.numeric(X) > thrsad)} else {
+        which.max(as.numeric(X))
+      }
+    }
+    )
+    
+  for(ts in length(c(-thrsad,thrsad))){
+    
+    idXcutValue<-list_parameter_for_custom_analysis[[2]][ts]
+    
+    for(i in 1:nrow(filterMRAC[,idexSADcolumn])){
+      
+      cutValue.index<-unlist(idXcutValue[[1]][i]) #the number of cutimum value is the same of the number of rows used for their estimation
+      cutValue.extract<-filterMRAC[i,idexSADcolumn][cutValue.index]
+      names.cutValues<-gsub(pattern="score_sad",names(cutValue.extract),replacement="")
+      
+      stringtogrep<-NULL
+      
+      for(lncv in names.cutValues){
+        
+      stg<-paste(c("genes_in_module","drugs_in_module","score_sad","rule_module"),lncv,sep="")
+      stringtogrep<-c(stringtogrep,stg) 
+      }
+      
+      newcol1<- colnames(filterMRAC)[which(colnames(filterMRAC)%in% stringtogrep)]
+      idx_start_clinical<-tail(grep(colnames(filterMRAC),pattern="rule"),1)+1 # see the index in which start the clinical data, i known that come after the rules
+      newcol2<-colnames(filterMRAC)[idx_start_clinical:ncol(filterMRAC)]
+      totalCol<-c(colnames(filterMRAC)[1],newcol1,newcol2)
+      
+      
+      ##group genes 
+      subselectionGenes<-grep(totalCol,pattern="genes_in_module",value=T)
+      dfgenes<-data.frame(genes_in_module=paste(as.character(filterMRAC[i,subselectionGenes]),collapse=","))
+      
+      ##group drugs
+      subselectionDrugs<-grep(totalCol,pattern="drugs_in_module",value=T)
+      dfdrugs<-data.frame(drugs_in_module=paste(as.character(filterMRAC[i,subselectionDrugs]),collapse=","))
+       
+      ##group score
+      subselectionsad<-grep(totalCol,pattern="sad",value=T)
+      dfsad<-data.frame(sad_of_module=paste(as.numeric(filterMRAC[i,subselectionsad]),collapse=","))
+      ##group rule
+      subselectionrule<-grep(totalCol,pattern="rule",value=T)
+      dfrule<-data.frame(rule_of_module=paste(as.character(filterMRAC[i,subselectionrule]),collapse="-"))
+      
+      stringCV<-t(data.frame(paste(names.cutValues,collapse="-")))
+
+      subRow<-cbind(patientID=filterMRAC[i,1],dfgenes,dfdrugs,dfrule,dfsad,n.module.cut.sad=stringCV,stringsAsFactors=F)
+      #the first four columns are always the same
+      simple.output.results<-rbind(simple.output.results,subRow)
+      
+    }
+    
+    write.table(simple.output.results,file=paste(paste("Analysis_GMIEC_simplified_results",list_parameter_for_custom_analysis[[4]][ts],sep=""),".txt",sep=""),sep="\t",row.names=F,col.names=T,quote=F) # the first row is always empty
+    
+    
+  }
+}
+  
+}
+
+extractModules(MATRIX_RESULTS_ALL_CLINICAL,selection="which.max")
+extractModules(MATRIX_RESULTS_ALL_CLINICAL,selection="which.min")
+
+###
+### extract data with custom user defined threshold
+###
+
+module_thr.max<-0.6
+module_thr.min<- -(0.6)
+
 selectColumns<-grep(grep(colnames(MATRIX_RESULTS_ALL_CLINICAL),pattern="#",invert=T,value=T),pattern="score_alteration",invert=T,value=T)
 filterMRAC<-MATRIX_RESULTS_ALL_CLINICAL[-1,selectColumns]
 idexSADcolumn<-grep(colnames(filterMRAC),pattern="sad") #index of SAD columns
-idXMaxValue<-apply(filterMRAC[,idexSADcolumn],1,which.max)
 
-simple.output.results<-data.frame()
+idXMinValue<-apply(X=filterMRAC[,idexSADcolumn],1, FUN=function(X){
+ if(length(which(as.numeric(X) < module_thr.min))!=0) 
+    {which(as.numeric(X) < module_thr.min)} else {
+      which.min(as.numeric(X))
+      }
+    }
+ )
 
-for(i in 1:nrow(filterMRAC[,idexSADcolumn])){
-  
-        maxValue.index<-idXMaxValue[i] #the number of maximum value is the same of the number of rows used for their estimation
-        maxValue.extract<-filterMRAC[i,idexSADcolumn][maxValue.index]
-        names.maxValues<-gsub(pattern="score_sad",names(maxValue.extract),replacement="")
-        
-        stringtogrep<-paste(c("genes_in_module","drugs_in_module","score_sad","rule_module"),names.maxValues,sep="")
-        
-        newcol1<- colnames(filterMRAC)[which(colnames(filterMRAC)%in% stringtogrep)]
-        idx_start_clinical<-tail(grep(colnames(filterMRAC),pattern="rule"),1)+1 # see the index in which start the clinical data, i known that come after the rules
-        newcol2<-colnames(filterMRAC)[idx_start_clinical:ncol(filterMRAC)]
-        totalCol<-c(colnames(filterMRAC)[1],newcol1,newcol2)
-        
-        subRow<-cbind(patientID=rownames(filterMRAC)[i],data.frame(filterMRAC[i,totalCol]),n.module.max.sad=names.maxValues,stringsAsFactors=F)
-        #the first four columns are always the same
-        colnames(subRow)[2:6]<-c("patientID","genes_in_module_with_maxSAD","drugs_in_module_With_maxSAD","score_of_module","rule_of_module")
-        
-        simple.output.results<-rbind(simple.output.results,subRow)
-        
+idXMaxValue<-apply(X=filterMRAC[,idexSADcolumn],1, FUN=function(X){
+  if(length(which(as.numeric(X) > module_thr.max))!=0)
+  {which(as.numeric(X) > module_thr.max)} else {
+    which.max(as.numeric(X))
+  }
 }
+)
 
-simple.output.results<-cbind(simple.output.results[,-1],type.of.rule=as.numeric(as.factor(simple.output.results$rule_of_module)))
-
-#this output give me the information about the module that i can targeted
-write.table(simple.output.results,file="Analysis_GMIEC_simplified_results_maxSAD.txt",sep="\t",row.names=F,col.names=T,quote=F) # the first row is always empty
-
-#4) save the results considering the minimum SAD 
-
-selectColumns<-grep(grep(colnames(MATRIX_RESULTS_ALL_CLINICAL),pattern="#",invert=T,value=T),pattern="score_alteration",invert=T,value=T)
-filterMRAC<-MATRIX_RESULTS_ALL_CLINICAL[-1,selectColumns]
-idexSADcolumn<-grep(colnames(filterMRAC),pattern="sad") #index of SAD columns
-idXMinValue<-apply(filterMRAC[,idexSADcolumn],1,which.min)
-
-simple.output.results.min<-data.frame()
-
-for(i in 1:nrow(filterMRAC[,idexSADcolumn])){
-  
-        MinValue.index<-idXMinValue[i] #the number of Minimum value is the same of the number of rows used for their estimation
-        MinValue.extract<-filterMRAC[i,idexSADcolumn][MinValue.index]
-        names.MinValues<-gsub(pattern="score_sad",names(MinValue.extract),replacement="")
-        
-        stringtogrep<-paste(c("genes_in_module","drugs_in_module","score_sad","rule_module"),names.MinValues,sep="")
-        newcol1<- colnames(filterMRAC)[which(colnames(filterMRAC)%in% stringtogrep)]
-        idx_start_clinical<-tail(grep(colnames(filterMRAC),pattern="rule"),1)+1 # see the index in which start the clinical data, i known that come after the rules
-        newcol2<-colnames(filterMRAC)[idx_start_clinical:ncol(filterMRAC)]
-        totalCol<-c(colnames(filterMRAC)[1],newcol1,newcol2)
-        
-        subRow<-cbind(patientID=rownames(filterMRAC)[i],data.frame((filterMRAC[i,totalCol])),n.module.Min.sad=names.MinValues,stringsAsFactors=F)
-        #the first four columns are always the same
-        colnames(subRow)[2:6]<-c("patientID","genes_in_module_with_maxSAD","drugs_in_module_With_maxSAD","score_of_module","rule_of_module")
-        
-        simple.output.results.min<-rbind(simple.output.results.min,subRow)
-  
-}
-simple.output.results.min<-cbind(simple.output.results.min[,-1],type.of.rule=as.numeric(as.factor(simple.output.results$rule_of_module)))
-#this output give me the information about the module that i CAN'T targeted # 
-write.table(simple.output.results.min,file="Analysis_GMIEC_simplified_results_minSAD.txt",sep="\t",row.names=F,col.names=T,quote=F) # the first row is always empty
-
-#save annotation results
-write.table(selected_genes_after_GE_filtering,file=paste(paste("annotation_results_GMIEC",output_file,sep="."),".txt",sep=""),sep="\t",row.names=F,col.names=T,quote=F) 
