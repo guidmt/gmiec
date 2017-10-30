@@ -191,10 +191,21 @@ print("Step3: Select the common ID patients between all patients")
 #Find the common patients between the experiment
 #
 
-pts_exp_ge<-colnames(check_ge_for_patients)
-pts_exp_cnv<-colnames(input_CNV_selected[,-c(1,2)])
-pts_meth_cnv<-colnames(input_METH_selected)
-pts_mut<-input_MUTATION_selected$Tumor_Sample_Barcode #tumor sample barcode it is the mandatory colnames
+#define a function to unify the names of patients. The function it is based on TCGA format to define the IDpatients.
+
+parseID<-function(x){
+  
+ x2<- gsub(x,pattern="-",replacement=".") #replace all - with . 
+ x3<- substr(x2,0,15)
+ 
+return(x3)
+ 
+}
+
+pts_exp_ge<-parseID(colnames(check_ge_for_patients))
+pts_exp_cnv<-parseID(colnames(input_CNV_selected[,-c(1,2)]))
+pts_meth_cnv<-parseID(colnames(input_METH_selected))
+pts_mut<-parseID(input_MUTATION_selected$Tumor_Sample_Barcode) #tumor sample barcode it is the mandatory colnames
 
 list_pts_experiments<-list(ge=pts_exp_ge,cnv=pts_exp_cnv,meth=pts_meth_cnv,mut=pts_mut)
 
@@ -962,10 +973,9 @@ for(bpm in 1:length(res_analysis_each_patient)){
   
   MATRIX_RESULTS_ALL<-rbind.fill(MATRIX_RESULTS_ALL,dfrow)
 }
-# 
 
-MATRIX_RESULTS_ALL[,1]<-gsub(MATRIX_RESULTS_ALL[,1],pattern="\\.",replacement="-")
-
+MATRIX_RESULTS_ALL$patient_id<-gsub(MATRIX_RESULTS_ALL$patient_id,pattern=".analysisGMIEC",replacement="")
+  
 MATRIX_RESULTS_ALL_CLINICAL<-merge(MATRIX_RESULTS_ALL[-1,],input_CLINICAL,by.x="patient_id",by.y="SAMPLE_ID")
 
 #2) save the main results of analysis
@@ -975,123 +985,10 @@ write.table(t(MATRIX_RESULTS_ALL_CLINICAL[-1,]),file="Analysis_GMIEC_main_result
 ### Data are combined by the same columns. Genes that are in the same modules (e.g. modules1) between two patients can have different 
 ### genomics featurest explore the data
 
-# ###
-# ### Now filter the previously matrix but considering only the modules alterated
-# ###
-# 
-# MATRIX_RESULTS_ALTERATED<-data.frame(matrix(,ncol=length(ALL_colnames)))
-# colnames(MATRIX_RESULTS_ALTERATED)<-ALL_colnames
-# 
-# list_genes_alterated<-NULL
-# list_drugs_alterated<-NULL
-# 
-# for(ncm in 2:nrow(MATRIX_RESULTS_ALL)){
-#   
-#   x<-MATRIX_RESULTS_ALL[ncm,]
-#   
-#   index_columns_sad<-grep(colnames(x),pattern="score_sad")
-#   
-#   ns<-index_columns_sad[which(x[,index_columns_sad]<0)] #I want only the modules in which the sad is less than 0. Also modules with positive values can alterated. But i focus only on the most important
-#   
-#   save_colnames<-colnames(x)
-#   
-#   colnames(x)<- gsub(gsub(colnames(x),pattern="[a-z]",replacement=""),pattern="[[:punct:]]",replacement="")
-# 
-#   modules<- paste(paste("^",colnames(x[ns]),sep=""),"$",sep="",collapse="|")
-# 
-#   indexcol<- grep(colnames(x),pattern=modules)
-#   
-#   subdf<-cbind(x[,c(1:3)],x[,indexcol])
-#   
-#   colnames(subdf)<-c(save_colnames[1:3],save_colnames[indexcol])
-# 
-#   #get the genes in modules
-#   dfg<-subdf[,grep(colnames(subdf),pattern="genes_in_module",value=T)]
-#   ga<-unlist(dfg, use.names = FALSE)
-#   ga<-unique(unlist(strsplit(ga,split=",")))
-#   names(ga)<-rep(subdf[,"patient_id"],length(ga))
-#   
-#   #get the drugs in modules
-#   dfd<-subdf[,grep(colnames(subdf),pattern="drugs_in_module",value=T)]
-#   da<-unlist(dfd, use.names = FALSE)
-#   da<-unlist(strsplit(unlist(strsplit(da,split="#")),split="@"))
-#   names(da)<-rep(subdf[,"patient_id"],length(da))
-#   
-#   MATRIX_RESULTS_ALTERATED<- rbind.fill(MATRIX_RESULTS_ALTERATED,subdf)
-#   
-#   list_genes_alterated<-c(list_genes_alterated,ga)
-#   list_drugs_alterated<-c(list_drugs_alterated,da)
-#   
-# }
-# 
-# list_genes_alterated_df<-table(unique(data.frame(patient=names(list_genes_alterated),genes=list_genes_alterated)))
-# list_drugs_alterated_df<-table(unique(data.frame(patient=names(list_drugs_alterated),drugs=list_drugs_alterated)))
-
-###
-# ### Now filter the previously matrix but considering only the modules not alterated
-# ###
-# 
-# print("Step 7: Save the results of analysis")
-# 
-# MATRIX_RESULTS_NOT_ALTERATED<-data.frame(matrix(,ncol=length(ALL_colnames)))
-# colnames(MATRIX_RESULTS_NOT_ALTERATED)<-ALL_colnames
-# 
-# list_genes_NOT_alterated<-NULL
-# list_drugs_NOT_alterated<-NULL
-# 
-# for(ncm in 2:nrow(MATRIX_RESULTS_ALL)){
-#         
-#         x<-MATRIX_RESULTS_ALL[ncm,]
-#         
-#         index_columns_sad<-grep(colnames(x),pattern="score_sad")
-#         
-#         ns<-index_columns_sad[which(x[,index_columns_sad]>0)] #I want only the modules in which the sad is greater than 0. Also modules with positive values can alterated. But i focus only on the most important
-#         
-#         save_colnames<-colnames(x)
-#         
-#         colnames(x)<- gsub(gsub(colnames(x),pattern="[a-z]",replacement=""),pattern="[[:punct:]]",replacement="")
-#         
-#         modules<- paste(paste("^",colnames(x[ns]),sep=""),"$",sep="",collapse="|")
-#         
-#         selectcol<- grep(colnames(x),pattern=modules,value=T)
-#         indexcol<- grep(colnames(x),pattern=modules)
-#         
-#         subdf<-cbind(x[,c(1:3)],x[,indexcol])
-#         
-#         colnames(subdf)<-c(save_colnames[1:3],save_colnames[indexcol])
-#         
-#         #get the genes in modules
-#         dfg<-subdf[,grep(colnames(subdf),pattern="genes_in_module",value=T)]
-#         ga<-unlist(dfg, use.names = FALSE)
-#         ga<-unique(unlist(strsplit(ga,split=",")))
-#         names(ga)<-rep(subdf[,"patient_id"],length(ga))
-#         
-#         #get the drugs in modules
-#         dfd<-subdf[,grep(colnames(subdf),pattern="drugs_in_module",value=T)]
-#         da<-unlist(dfd, use.names = FALSE)
-#         da<-unlist(strsplit(unlist(strsplit(da,split="#")),split="@"))
-#         names(da)<-rep(subdf[,"patient_id"],length(da))
-#         
-#         MATRIX_RESULTS_NOT_ALTERATED<- rbind.fill(MATRIX_RESULTS_NOT_ALTERATED,subdf)
-#         
-#         list_genes_NOT_alterated<-c(list_genes_NOT_alterated,ga)
-#         list_drugs_NOT_alterated<-c(list_drugs_NOT_alterated,da)
-# 
-# }
-# 
-# list_genes_NOT_alterated_df<-table(unique(data.frame(patient=names(list_genes_NOT_alterated),genes=list_genes_NOT_alterated)))
-# list_drugs_NOT_alterated_df<-table(unique(data.frame(patient=names(list_drugs_NOT_alterated),drugs=list_drugs_NOT_alterated)))
-
-#############
-#############
-
 
 #3) save the results considering the highest SAD 
 
 #start the processing to save the data in a simplest form, considered only the table where sad is higher
-colnames(MATRIX_RESULTS_ALL_CLINICAL)<-MATRIX_RESULTS_ALL_CLINICAL[1,]
-#MATRIX_RESULTS_ALL_CLINICAL<-MATRIX_RESULTS_ALL_CLINICAL[,-1]
-
 selectColumns<-grep(grep(colnames(MATRIX_RESULTS_ALL_CLINICAL),pattern="#",invert=T,value=T),pattern="score_alteration",invert=T,value=T)
 filterMRAC<-MATRIX_RESULTS_ALL_CLINICAL[-1,selectColumns]
 idexSADcolumn<-grep(colnames(filterMRAC),pattern="sad") #index of SAD columns
@@ -1158,19 +1055,4 @@ simple.output.results.min<-cbind(simple.output.results.min[,-1],type.of.rule=as.
 write.table(simple.output.results.min,file="Analysis_GMIEC_simplified_results_minSAD.txt",sep="\t",row.names=F,col.names=T,quote=F) # the first row is always empty
 
 #save annotation results
-
 write.table(selected_genes_after_GE_filtering,file=paste(paste("annotation_results_GMIEC",output_file,sep="."),".txt",sep=""),sep="\t",row.names=F,col.names=T,quote=F) 
-##
-## Write other additional file
-# ##
-# write.table(t(MATRIX_RESULTS_ALTERATED),file="Analysis_GMIEC_alterated_modules_results.txt",sep="\t",row.names=T,col.names=F,quote=F) # the first row is always empty
-# 
-# write.table(t(MATRIX_RESULTS_NOT_ALTERATED),file="Analysis_GMIEC_NOT_alterated_modules_results.txt",sep="\t",row.names=T,col.names=F,quote=F) # the first row is always empty
-# 
-# write.table(list_genes_alterated_df,file="Analysis_GMIEC_GENES_in_alterated_modules_results.txt",sep="\t",row.names=T,col.names=T,quote=F) # the first row is always empty
-# 
-# write.table(list_drugs_alterated_df,file="Analysis_GMIEC_DRUGS_in_alterated_modules_results.txt",sep="\t",row.names=T,col.names=T,quote=F) # the first row is always empty
-# 
-# write.table(list_genes_NOT_alterated_df,file="Analysis_GMIEC_GENES_in_NOT_alterated_modules_results.txt",sep="\t",row.names=T,col.names=T,quote=F) # the first row is always empty
-# 
-# write.table(list_drugs_NOT_alterated_df,file="Analysis_GMIEC_DRUGS_in_NOT_alterated_modules_results.txt",sep="\t",row.names=T,col.names=T,quote=F) # the first row is always empty
