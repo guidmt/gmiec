@@ -990,12 +990,15 @@ write.table(t(MATRIX_RESULTS_ALL_CLINICAL[-1,]),file="Analysis_GMIEC_main_result
 
 
 #3) define a function to save the results of the modules
-extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","which.min","custom",thrsad=NULL)){
+extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","which.min","custom"),thrsad=NULL){
   
   selectColumns<-grep(grep(colnames(MATRIX_RESULTS_ALL_CLINICAL),pattern="#",invert=T,value=T),pattern="score_alteration",invert=T,value=T)
   filterMRAC<-MATRIX_RESULTS_ALL_CLINICAL[-1,selectColumns]
   idexSADcolumn<-grep(colnames(filterMRAC),pattern="sad") #index of SAD columns
-  idXcutValue<-apply(filterMRAC[,idexSADcolumn],1,selection)
+  
+  if(selection!="custom"){ #first criteria: if the function is different from custom get the function
+    
+  idXcutValue<-apply(filterMRAC[,idexSADcolumn],1,get(selection))
   
   ###
   ### define some controls
@@ -1014,7 +1017,7 @@ extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","wh
   
   }
   
-  if(selection=="custom"){
+  } else { #close first criteria 
     
             output1<-paste("custom_max",thrsad,sep="")
             output2<-paste("custom_min",-thrsad,sep="") 
@@ -1138,33 +1141,6 @@ extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","wh
   
 }
 
-extractModules(MATRIX_RESULTS_ALL_CLINICAL,selection="which.max")
-extractModules(MATRIX_RESULTS_ALL_CLINICAL,selection="which.min")
-
-###
-### extract data with custom user defined threshold
-###
-
-module_thr.max<-0.6
-module_thr.min<- -(0.6)
-
-selectColumns<-grep(grep(colnames(MATRIX_RESULTS_ALL_CLINICAL),pattern="#",invert=T,value=T),pattern="score_alteration",invert=T,value=T)
-filterMRAC<-MATRIX_RESULTS_ALL_CLINICAL[-1,selectColumns]
-idexSADcolumn<-grep(colnames(filterMRAC),pattern="sad") #index of SAD columns
-
-idXMinValue<-apply(X=filterMRAC[,idexSADcolumn],1, FUN=function(X){
- if(length(which(as.numeric(X) < module_thr.min))!=0) 
-    {which(as.numeric(X) < module_thr.min)} else {
-      which.min(as.numeric(X))
-      }
-    }
- )
-
-idXMaxValue<-apply(X=filterMRAC[,idexSADcolumn],1, FUN=function(X){
-  if(length(which(as.numeric(X) > module_thr.max))!=0)
-  {which(as.numeric(X) > module_thr.max)} else {
-    which.max(as.numeric(X))
-  }
-}
-)
-
+extractModules(MATRIX_RESULTS_ALL_CLINICAL=MATRIX_RESULTS_ALL_CLINICAL,selection="which.max")
+extractModules(MATRIX_RESULTS_ALL_CLINICAL=MATRIX_RESULTS_ALL_CLINICAL,selection="which.min")
+extractModules(MATRIX_RESULTS_ALL_CLINICAL=MATRIX_RESULTS_ALL_CLINICAL,selection="custom",thrsad=0.6)
