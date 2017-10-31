@@ -1022,6 +1022,7 @@ extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","wh
             newcolnames2<-paste(c("patientID","genes_in_module_with_","drugs_in_module_with_","score_of_module","rule_of_module"),output2,sep="")
   }
   
+  
   simple.output.results<-data.frame()
   
   if(selection!="custom"){
@@ -1053,15 +1054,8 @@ extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","wh
   
   } else {
     
-    simple.output.results<-data.frame()
 
     #define the output for output custom mode
-    list_parameter_for_custom_analysis<-list()
-    list_parameter_for_custom_analysis[[1]]<-c(-thrsad,thrsad)
-    list_parameter_for_custom_analysis[[2]]<-list(idXMinValue,idXMaxValue)
-    list_parameter_for_custom_analysis[[3]]<-data.frame(newcolnames1,newcolnames2)
-    list_parameter_for_custom_analysis[[4]]<-data.frame(output2,output1)
-
     selectColumns<-grep(grep(colnames(MATRIX_RESULTS_ALL_CLINICAL),pattern="#",invert=T,value=T),pattern="score_alteration",invert=T,value=T)
     filterMRAC<-MATRIX_RESULTS_ALL_CLINICAL[-1,selectColumns]
     idexSADcolumn<-grep(colnames(filterMRAC),pattern="sad") #index of SAD columns
@@ -1082,7 +1076,15 @@ extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","wh
     }
     )
     
-  for(ts in length(c(-thrsad,thrsad))){
+    list_parameter_for_custom_analysis<-list()
+    list_parameter_for_custom_analysis[[1]]<-c(-thrsad,thrsad)
+    list_parameter_for_custom_analysis[[2]]<-list(idXMinValue,idXMaxValue)
+    list_parameter_for_custom_analysis[[3]]<-data.frame(newcolnames1,newcolnames2)
+    list_parameter_for_custom_analysis[[4]]<-data.frame(output2,output1)
+    
+  for(ts in 1:length(c(-thrsad,thrsad))){
+    
+    simple.output.results<-data.frame()
     
     idXcutValue<-list_parameter_for_custom_analysis[[2]][ts]
     
@@ -1129,10 +1131,9 @@ extractModules<-function(MATRIX_RESULTS_ALL_CLINICAL,selection=c("which.max","wh
       
     }
     
-    write.table(simple.output.results,file=paste(paste("Analysis_GMIEC_simplified_results",list_parameter_for_custom_analysis[[4]][ts],sep=""),".txt",sep=""),sep="\t",row.names=F,col.names=T,quote=F) # the first row is always empty
-    
-    
+    write.table(simple.output.results,file=paste(paste("Analysis_GMIEC_simplified_results",as.character(unlist(list_parameter_for_custom_analysis[[4]][ts])),sep=""),".txt",sep=""),sep="\t",row.names=F,col.names=T,quote=F) # the first row is always empty
   }
+
 }
   
 }
