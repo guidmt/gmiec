@@ -1,3 +1,3 @@
 ###
-### Readme file of GMIEC V0.2
+### Hi GMIEC is moved! GO to https://github.com/guidmt/GMIEC-shiny
 ###
